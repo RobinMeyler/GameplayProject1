@@ -3,6 +3,7 @@
 GameObject::GameObject() :
 	model(1.0f)
 {
+	
 	// Copy the Cube contents into GameObject
 	memcpy(this->vertex, vertices, sizeof(this->vertex));
 	memcpy(this->color, colors, sizeof(this->color));

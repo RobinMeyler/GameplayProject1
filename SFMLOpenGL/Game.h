@@ -1,54 +1,60 @@
-// Robin Meyler
-
 #ifndef GAME_H
 #define GAME_H
 
-#include <Debug.h>
+#include <string>
+#include <sstream>
 
 #include <iostream>
 #include <GL/glew.h>
 #include <GL/wglew.h>
-#include <SFML/Window.hpp>
-#include <SFML/OpenGL.hpp>
+
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include <MyVector3.h>
-#include <Matrix3.h>
-#include "GameObject.h"
+#include <SFML/Graphics.hpp>
+#include <SFML/OpenGL.hpp>
+
+#include <Debug.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#include <GameObject.h>
+
 using namespace std;
 using namespace sf;
+using namespace glm;
 
 class Game
 {
 public:
 	Game();
+	Game(sf::ContextSettings settings);
 	~Game();
 	void run();
 private:
-	Window window;
+	GameObject* game_object[2];
+	RenderWindow window;
+	Clock clock;
+	Time time;
+	bool animate = false;
+	vec3 animation = vec3(0.0f);
+	float rotation = 0.0f;
 	bool isRunning = false;
 	void initialize();
 	void update();
 	void render();
 	void unload();
 
-	Clock clock;
-	Time elapsed;
-
 	GameObject m_player;
-	GameObject m_block;
+	GameObject m_block[10];
 
 	bool backPosition{ false };
 	int m_count{ 0 };
-	vec3 cameraPosition{ 8.0f, 0.0f, 0.0f };
-
+	vec3 cameraPosition{ 0.0f, 0.0f, 20.0f };
+	float zoom{ 0.f };
 	float rotationAngle = 0.0f;
 };
 
-#endif
+#endif  // ! GAME_H
