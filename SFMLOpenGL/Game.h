@@ -11,8 +11,12 @@
 #include <SFML/Window.hpp>
 #include <SFML/OpenGL.hpp>
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 #include <MyVector3.h>
 #include <Matrix3.h>
+#include "GameObject.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -36,6 +40,9 @@ private:
 
 	Clock clock;
 	Time elapsed;
+
+	GameObject m_player;
+	GameObject m_block;
 
 	float rotationAngle = 0.0f;
 };

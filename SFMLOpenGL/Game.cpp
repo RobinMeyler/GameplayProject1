@@ -64,6 +64,8 @@ texelID;	// Texel ID
 			//const string filename = "texture.tga";
 			//const string filename = "cube.tga";
 
+glm::mat4 projection, view;
+
 const string filename = "minecraft.tga";
 
 int width; //width of texture
@@ -78,6 +80,25 @@ void Game::initialize()
 	isRunning = true;
 	GLint isCompiled = 0;
 	GLint isLinked = 0;
+
+
+
+	// Projection Matrix 
+	projection = glm::perspective(
+		45.0f,					// Field of View 45 degrees
+		4.0f / 3.0f,			// Aspect ratio
+		5.0f,					// Display Range Min : 0.1f unit
+		100.0f					// Display Range Max : 100.0f unit
+	);
+
+	// Camera Matrix
+	view = glm::lookAt(
+		glm::vec3(0.0f, 4.0f, 10.0f),	// Camera (x,y,z), in World Space
+		glm::vec3(0.0f, 0.0f, 0.0f),		// Camera looking at origin
+		glm::vec3(0.0f, 1.0f, 0.0f)		// 0.0f, 1.0f, 0.0f Look Down and 0.0f, -1.0f, 0.0f Look Up
+	);
+
+	m_player.setPosition(glm::vec3{ 0.0f, 0.0f, 0.0f });
 
 	glewInit();
 
