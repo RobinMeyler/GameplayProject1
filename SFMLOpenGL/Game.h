@@ -44,6 +44,10 @@ private:
 	GameObject m_player;
 	GameObject m_block;
 
+	bool backPosition{ false };
+	int m_count{ 0 };
+	vec3 cameraPosition{ 8.0f, 0.0f, 0.0f };
+
 	float rotationAngle = 0.0f;
 };
 

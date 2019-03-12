@@ -64,7 +64,7 @@ texelID;	// Texel ID
 			//const string filename = "texture.tga";
 			//const string filename = "cube.tga";
 
-glm::mat4 projection, view;
+glm::mat4 projection, view(1.f);
 
 const string filename = "minecraft.tga";
 
@@ -81,24 +81,6 @@ void Game::initialize()
 	GLint isCompiled = 0;
 	GLint isLinked = 0;
 
-
-
-	// Projection Matrix 
-	projection = glm::perspective(
-		45.0f,					// Field of View 45 degrees
-		4.0f / 3.0f,			// Aspect ratio
-		5.0f,					// Display Range Min : 0.1f unit
-		100.0f					// Display Range Max : 100.0f unit
-	);
-
-	// Camera Matrix
-	view = glm::lookAt(
-		glm::vec3(0.0f, 4.0f, 10.0f),	// Camera (x,y,z), in World Space
-		glm::vec3(0.0f, 0.0f, 0.0f),		// Camera looking at origin
-		glm::vec3(0.0f, 1.0f, 0.0f)		// 0.0f, 1.0f, 0.0f Look Down and 0.0f, -1.0f, 0.0f Look Up
-	);
-
-	m_player.setPosition(glm::vec3{ 0.0f, 0.0f, 0.0f });
 
 	glewInit();
 
@@ -373,12 +355,19 @@ void Game::initialize()
 		"layout(location = 1) in vec4 sv_color;"
 		"layout(location = 2) in vec2 sv_texel;"
 
+		"out vec3 position;"
 		"out vec4 color;"
 		"out vec2 texel;"
+
+		"uniform mat4 ModelMatrix;"
+		"uniform mat4 ViewMatrix;"
+		"uniform mat4 ProjectionMatrix;"
+
 		"void main() {"
+		"   position = vec4(ModelMatrix * vec4(sv_position, 1.f)).xyz;"
 		"	color = sv_color;"
 		"	texel = sv_texel;"
-		"	gl_Position = vec4(sv_position, 1.0);"
+		"	gl_Position = ProjectionMatrix * ViewMatrix *  ModelMatrix  * vec4(sv_position, 1.f);"
 		"}"; //Vertex Shader Src
 
 	DEBUG_MSG("Setting Up Vertex Shader");
@@ -492,6 +481,41 @@ void Game::initialize()
 	glBindAttribLocation(progID, texelID, "sv_position");
 
 
+
+
+	// Projection Matrix 
+	projection = glm::perspective(
+		glm::radians(45.0f),					// Field of View 45 degrees
+		4.0f / 3.0f,			// Aspect ratio
+		0.1f,					// Display Range Min : 0.1f unit
+		100.0f					// Display Range Max : 100.0f unit
+	);
+
+	// Camera Matrix
+	view = glm::lookAt(
+		glm::vec3(0.0f, 0.0f, 5.0f),	// Camera (x,y,z), in World Space
+		glm::vec3(0.0f, 0.0f, 0.0f),		// Camera looking at origin
+		glm::vec3(0.0f, 1.0f, 0.0f)		// 0.0f, 1.0f, 0.0f Look Down and 0.0f, -1.0f, 0.0f Look Up
+	);
+
+	m_player.model = glm::mat4(1.f);
+	m_player.model = glm::translate(m_player.model, m_player.objectPosition);
+	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
+	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
+	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
+	m_player.model = glm::scale(m_player.model, m_player.objectScale);
+
+	glUseProgram(progID);
+	glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_player.model[0][0]);
+	glUniformMatrix4fv(glGetUniformLocation(progID, "ViewMatrix"), 1, GL_FALSE, &view[0][0]);
+	glUniformMatrix4fv(glGetUniformLocation(progID, "ProjectionMatrix"), 1, GL_FALSE, &projection[0][0]);
+	glUseProgram(0);
+
+
+
+
+
+
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 	glEnable(GL_CULL_FACE);
@@ -501,83 +525,43 @@ void Game::update()
 {
 	elapsed = clock.getElapsedTime();
 	glUseProgram(progID);
+
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Z))
 	{
-		for (int i = 0; i < 36; i++)
-		{
-			MyVector3 tempVec = { vertex[i].coordinate[0], vertex[i].coordinate[1],  vertex[i].coordinate[2] };// Temp vector to use matrix
-			tempVec = (MyMatrix3::rotationZ(0.004) * tempVec);
-
-			vertex[i].coordinate[0] = tempVec.x;		// Reassign to vertices
-			vertex[i].coordinate[1] = tempVec.y;
-			vertex[i].coordinate[2] = tempVec.z;
-		}
+		m_player.objectRotation.x += 0.1f;
 	}
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::X))
 	{
-		for (int i = 0; i < 36; i++)
-		{
-			MyVector3 tempVec = { vertex[i].coordinate[0], vertex[i].coordinate[1],  vertex[i].coordinate[2] };// Temp vector to use matrix
-			tempVec = (MyMatrix3::rotationX(0.004) * tempVec);
-
-			vertex[i].coordinate[0] = tempVec.x;		// Reassign to vertices
-			vertex[i].coordinate[1] = tempVec.y;
-			vertex[i].coordinate[2] = tempVec.z;
-		}
+		m_player.objectRotation.y += 0.1f;
 	}
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::C))
 	{
-		for (int i = 0; i < 36; i++)
-		{
-			MyVector3 tempVec = { vertex[i].coordinate[0], vertex[i].coordinate[1],  vertex[i].coordinate[2] };// Temp vector to use matrix
-			tempVec = (MyMatrix3::rotationY(0.004) * tempVec);
-
-			vertex[i].coordinate[0] = tempVec.x;	// Reassign to vertices
-			vertex[i].coordinate[1] = tempVec.y;
-			vertex[i].coordinate[2] = tempVec.z;
-		}
-	}
-	// Scale
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
-	{
-		for (int i = 0; i < 36; i++)
-		{
-			MyVector3 tempVec = { vertex[i].coordinate[0], vertex[i].coordinate[1],  vertex[i].coordinate[2] };	// Temp vector to use matrix
-			tempVec = (MyMatrix3::scale(0.998) * tempVec);
-
-			vertex[i].coordinate[0] = tempVec.x;		// Reassign to vertices
-			vertex[i].coordinate[1] = tempVec.y;
-			vertex[i].coordinate[2] = tempVec.z;
-		}
-	}
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
-	{
-		for (int i = 0; i < 36; i++)
-		{
-			MyVector3 tempVec = { vertex[i].coordinate[0], vertex[i].coordinate[1], vertex[i].coordinate[2] };			// Temp vector to use matrix
-			tempVec = (MyMatrix3::scale(1.002) * tempVec);
-
-			vertex[i].coordinate[0] = tempVec.x;		// Reassign to vertices
-			vertex[i].coordinate[1] = tempVec.y;
-			vertex[i].coordinate[2] = tempVec.z;
-		}
+		m_player.objectRotation.z += 0.1f;
 	}
 	// Translate
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
 	{
-		trans = (MyMatrix3::translation(MyVector3{ 0, 0.001 ,0 }) *  trans);
+		m_player.objectPosition += glm::vec3(0.0f, 0.001f, 0.f);
 	}
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
 	{
-		trans = (MyMatrix3::translation(MyVector3{ 0, -0.001 ,0 }) *  trans);
+		m_player.objectPosition -= glm::vec3(0.0f, 0.001f, 0.f);
 	}
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
 	{
-		trans = (MyMatrix3::translation(MyVector3{ 0.001, 0 ,0 }) *  trans);
+		m_player.objectPosition += glm::vec3(0.001f, 0.0f, 0.0f);
 	}
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
 	{
-		trans = (MyMatrix3::translation(MyVector3{ -0.001, 0 ,0 }) *  trans);
+		m_player.objectPosition -= glm::vec3(0.001f, 0.0f, 0.0f);
+	}
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::O))
+	{
+		m_player.objectPosition += glm::vec3(0.0f, 0.f, 0.002f);
+	}
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::P))
+	{
+		m_player.objectPosition -= glm::vec3(0.0f, 0.f, 0.002f);
 	}
 	// Update the overall translation
 	for (int i = 0; i < 36; i++)
@@ -587,7 +571,41 @@ void Game::update()
 		finalVertex[i].coordinate[1] += trans.y;
 	}
 
+	m_player.model = glm::mat4(1.f);
+	m_player.model = glm::translate(m_player.model, m_player.objectPosition);
+	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
+	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
+	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
+	m_player.model = glm::scale(m_player.model, m_player.objectScale);
 
+
+	// Working camera follower -----------------------------------------------
+	//if (m_count > 1000)
+	//{
+	//	if (sf::Keyboard::isKeyPressed(sf::Keyboard::T))
+	//	{
+	//		if (backPosition == false)
+	//		{
+	//			cameraPosition = glm::vec3(8.0f, 0.0f, 0.0f);
+	//			backPosition = true;
+	//		}
+	//		else
+	//		{
+	//			cameraPosition = glm::vec3(0.0f, 8.0f, 8.0f);
+	//			backPosition = false;
+	//		}
+	//		m_count = 0;
+	//	}
+	//}
+	//m_count++;
+
+	//view = glm::lookAt(
+	//	m_player.objectPosition + cameraPosition,	// Camera (x,y,z), in World Space
+	//	m_player.objectPosition,		// Camera looking at origin
+	//	glm::vec3(0.0f, 1.0f, 0.0f)		// 0.0f, 1.0f, 0.0f Look Down and 0.0f, -1.0f, 0.0f Look Up
+	//);
+
+	// Nulls
 
 
 #if (DEBUG >= 2)
@@ -620,7 +638,9 @@ void Game::render()
 	//Set Active Texture .... 32
 	glActiveTexture(GL_TEXTURE0);
 	glUniform1i(textureID, 0);
-
+	glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_player.model[0][0]);
+	glUniformMatrix4fv(glGetUniformLocation(progID, "ViewMatrix"), 1, GL_FALSE, &view[0][0]);
+	glUniformMatrix4fv(glGetUniformLocation(progID, "ProjectionMatrix"), 1, GL_FALSE, &projection[0][0]);
 	// Set pointers for each parameter
 	// https://www.opengl.org/sdk/docs/man4/html/glVertexAttribPointer.xhtml
 	glVertexAttribPointer(positionID, 3, GL_FLOAT, GL_FALSE, sizeof(Vert), 0);

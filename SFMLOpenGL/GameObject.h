@@ -27,6 +27,9 @@ private:
 public:
 	GameObject();
 	~GameObject();
+	vec3 objectPosition{ 0.f };
+	vec3 objectRotation{ 0.f };
+	vec3 objectScale{ 1.f };
 	mat4 model;
 	vec3 getPosition();
 	void setPosition(vec3 position);
