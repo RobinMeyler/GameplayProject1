@@ -12,27 +12,27 @@ string toString(T number)
 }
 
 GLuint	vsid,		// Vertex Shader ID
-		fsid,		// Fragment Shader ID
-		progID,		// Program ID
-		vao = 0,	// Vertex Array ID
-		vbo,		// Vertex Buffer ID
-		vib,		// Vertex Index Buffer
-		to[1];		// Texture ID
+fsid,		// Fragment Shader ID
+progID,		// Program ID
+vao = 0,	// Vertex Array ID
+vbo,		// Vertex Buffer ID
+vib,		// Vertex Index Buffer
+to[1];		// Texture ID
 GLint	positionID,	// Position ID
-		colorID,	// Color ID
-		textureID,	// Texture ID
-		uvID,		// UV ID
-		mvpID[2],		// Model View Projection ID
-		// 
-		x_offsetID, // X offset ID
-		y_offsetID,	// Y offset ID
-		z_offsetID;	// Z offset ID
+colorID,	// Color ID
+textureID,	// Texture ID
+uvID,		// UV ID
+mvpID[2],		// Model View Projection ID
+// 
+x_offsetID, // X offset ID
+y_offsetID,	// Y offset ID
+z_offsetID;	// Z offset ID
 
 GLenum	error;		// OpenGL Error Code
 
 
 //Please see .//Assets//Textures// for more textures
-const string filename = ".//Assets//Textures//grid_wip.tga";
+const string filename = "doggo.tga";
 
 int width;						// Width of texture
 int height;						// Height of texture
@@ -40,8 +40,8 @@ int comp_count;					// Component of texture
 
 unsigned char* img_data;		// image data
 
-mat4 mvp[2], projection, 
-		view(1.f), model;			// Model View Projection
+mat4 mvp[2], projection,
+view(1.f), model;			// Model View Projection
 
 GameObject player;
 
@@ -49,9 +49,10 @@ Font font;						// Game font
 
 float x_offset, y_offset, z_offset; // offset on screen (Vertex Shader)
 
-Game::Game() : 
-	window(VideoMode(800, 600), 
-	"Introduction to OpenGL Texturing")
+Game::Game() :
+	window(VideoMode(800, 600),
+		"Introduction to OpenGL Texturing"),
+	m_playerJumpState{ jumpState::Grounded }
 {
 }
 
@@ -59,7 +60,8 @@ Game::Game(sf::ContextSettings settings) :
 	window(VideoMode(800, 600),
 		"Introduction to OpenGL Texturing",
 		sf::Style::Default,
-		settings)
+		settings),
+	m_playerJumpState{ jumpState::Grounded }
 {
 
 }
@@ -80,7 +82,7 @@ void Game::run()
 	float start_value = 0.0f;
 	float end_value = 1.0f;
 
-	while (isRunning){
+	while (isRunning) {
 
 #if (DEBUG >= 2)
 		DEBUG_MSG("Game running...");
@@ -106,7 +108,7 @@ void Game::run()
 				std::cout << "mouse y: " << event.mouseWheelScroll.y << std::endl;
 				zoom = event.mouseWheelScroll.delta;
 			}
-	
+
 		}
 		update();
 		render();
@@ -118,6 +120,8 @@ void Game::run()
 	unload();
 
 }
+
+
 
 void Game::initialize()
 {
@@ -259,7 +263,7 @@ void Game::initialize()
 		glm::radians(45.0f),					// Field of View 45 degrees
 		4.0f / 3.0f,			// Aspect ratio
 		0.1f,					// Display Range Min : 0.1f unit
-		100.0f					// Display Range Max : 100.0f unit
+		1500.0f					// Display Range Max : 100.0f unit
 	);
 
 	// Camera Matrix
@@ -270,19 +274,33 @@ void Game::initialize()
 	);
 
 	// Initialize Positions
-	cameraPosition = {0.0f, 0.0f, 20.0f};
+	cameraPosition = { 0.0f, 0.0f, 30.0f };
 	m_player.model = glm::mat4(1.f);
 	m_player.model = glm::translate(m_player.model, m_player.objectPosition);
 	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
 	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
 	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
 	m_player.model = glm::scale(m_player.model, m_player.objectScale);
+
 	for (int i = 0; i < 10; i++)
 	{
 		m_block[i].objectPosition = vec3{ 0.f,0.f,0.f } +vec3{ 10.f + i * 20 ,0.f,0.f };
 		m_block[i].model = glm::translate(m_block[i].model, m_block[i].objectPosition);
+		m_block[i].objectRotation = { 0.f, -180.f, -180.f };
+		m_block[i].model = glm::rotate(m_block[i].model, glm::radians(m_block[i].objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
+		m_block[i].model = glm::rotate(m_block[i].model, glm::radians(m_block[i].objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
+		m_block[i].model = glm::rotate(m_block[i].model, glm::radians(m_block[i].objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
 	}
 
+	for (int i = 0; i < 200; i++)
+	{
+		m_ground[i].objectPosition = vec3{ 0.f,-2.f,0.f } +vec3{ 0.f + i ,0.f,0.f };
+		m_ground[i].objectRotation = { 0.f, -180.f, -180.f };
+		m_ground[i].model = glm::translate(m_ground[i].model, m_ground[i].objectPosition);
+		m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
+		m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
+		m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
+	}
 
 	// Enable Depth Test
 	glEnable(GL_DEPTH_TEST);
@@ -299,123 +317,61 @@ void Game::update()
 	DEBUG_MSG("Updating...");
 #endif
 
-	// Game input
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Z))
+	handleMovement();
+
+	m_player.objectPosition.x += 0.2;
+
+	if (m_playerJumpState == jumpState::Grounded)
 	{
-		m_player.objectRotation.x += 0.1f;
+		//
 	}
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::X))
+	else if (m_playerJumpState == jumpState::Rising)
 	{
-		m_player.objectRotation.y += 0.1f;
-	}
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::C))
-	{
-		m_player.objectRotation.z += 0.1f;
-	}
-	// Translate
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))		// Up
-	{
-		//m_player.objectPosition += glm::vec3(0.0f, 0.01f, 0.f);			// Real up
-		if (backPosition == true)										// Psudo forward for camera
+		if (m_player.objectPosition.y < 5.f)
 		{
-			m_player.objectPosition += glm::vec3(0.01f, 0.0f, 0.0f);
+			m_player.objectPosition.y += 0.25f;
+			m_player.objectRotation.z -= 1.5f;
+		}
+		else if (m_player.objectPosition.y < 6.f)
+		{
+			m_player.objectPosition.y += 0.125f;
+			m_player.objectRotation.z -= 1.5f;
+		}
+		else
+		{
+			m_playerJumpState = jumpState::Falling;
 		}
 	}
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))		// Down
+	else if (m_playerJumpState == jumpState::Falling)
 	{
-		//m_player.objectPosition -= glm::vec3(0.0f, 0.01f, 0.f);			// Real down
-		if (backPosition == true)
+		if (m_player.objectPosition.y > 5.f)
 		{
-			m_player.objectPosition -= glm::vec3(0.01f, 0.0f, 0.0f);
+			m_player.objectPosition.y -= 0.125f;
+			m_player.objectRotation.z -= 1.55f;
 		}
-	}
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))	// Right
-	{
-		if (backPosition != true)
+		else if (m_player.objectPosition.y > 0.f)
 		{
-			m_player.objectPosition += glm::vec3(0.01f, 0.0f, 0.0f);
+			m_player.objectPosition.y -= 0.25f;
+			m_player.objectRotation.z -= 1.5f;
 		}
-	}
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))		// Left
-	{
-		if (backPosition != true)
+		else
 		{
-			m_player.objectPosition -= glm::vec3(0.01f, 0.0f, 0.0f);
+			m_playerJumpState = jumpState::Grounded;
+			rotateCounter -= 90;
+			m_player.objectRotation.z = rotateCounter;
 		}
-	}
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::O))		// Into the world
-	{
-		//m_player.objectPosition += glm::vec3(0.0f, 0.f, 0.02f);
-	}
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::P))		// Toward the camera
-	{
-		//m_player.objectPosition -= glm::vec3(0.0f, 0.f, 0.02f);
 	}
 
-	// Updating the player to any changes made
+
+	// Updating the player to any changes made -------------------------------------------------------------------------------
 	m_player.model = glm::mat4(1.f);
 	m_player.model = glm::translate(m_player.model, m_player.objectPosition);
 	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
 	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
 	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
 	m_player.model = glm::scale(m_player.model, m_player.objectScale);
-	
-	// Working camera follower --------------------------------------------------------------------------------------------------
-	if (m_count > 1000)
-	{
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::T))
-		{
-			if (backPosition == true)
-			{
-				cameraPosition = glm::vec3(0.0f, 0.0f, 20.0f);
-				projection = glm::perspective(
-					glm::radians(45.f),					// Field of View 45 degrees
-					4.0f / 3.0f,			// Aspect ratio
-					0.1f,					// Display Range Min : 0.1f unit
-					100.0f					// Display Range Max : 100.0f unit
-				);
-				backPosition = false;
-			}
-			else
-			{
-				cameraPosition = glm::vec3(-20.0f, 20.0f, 0.0f);
-				projection = glm::perspective(
-					glm::radians(45.0f),					// Field of View 45 degrees
-					4.0f / 3.0f,			// Aspect ratio
-					0.1f,					// Display Range Min : 0.1f unit
-					100.0f					// Display Range Max : 100.0f unit
-				);
-				backPosition = true;
-			}
-			m_count = 0;
 
-		}
-	}
-	m_count++;
-	if (backPosition != true)
-	{
-		cameraPosition.z -= zoom;
-	}
-	else
-	{
-		cameraPosition.x += zoom;
-		cameraPosition.y -= zoom;
-	}
-	zoom = 0;
-	view = glm::lookAt(
-		m_player.objectPosition + cameraPosition,	// Camera (x,y,z), in World Space
-		m_player.objectPosition,		// Camera looking at origin
-		glm::vec3(0.0f, 1.0f, 0.0f)		// 0.0f, 1.0f, 0.0f Look Down and 0.0f, -1.0f, 0.0f Look Up
-	);
-
-	// Non follow cam
-	//view = glm::lookAt(
-	//	cameraPosition,	// Camera (x,y,z), in World Space
-	//	glm::vec3(0.0f, 0.0f, 0.0f),		// Camera looking at origin
-	//	glm::vec3(0.0f, 1.0f, 0.0f)		// 0.0f, 1.0f, 0.0f Look Down and 0.0f, -1.0f, 0.0f Look Up
-	//);
-
-	//-------------------------------------------------------------------------------------------------------------
+	camera();
 }
 
 void Game::render()
@@ -479,15 +435,15 @@ void Game::render()
 	glVertexAttribPointer(positionID, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glVertexAttribPointer(colorID, 4, GL_FLOAT, GL_FALSE, 0, (VOID*)(3 * VERTICES * sizeof(GLfloat)));
 	glVertexAttribPointer(uvID, 2, GL_FLOAT, GL_FALSE, 0, (VOID*)(((3 * VERTICES) + (4 * COLORS)) * sizeof(GLfloat)));
-	
+
 	// Enable Arrays
 	glEnableVertexAttribArray(positionID);
 	glEnableVertexAttribArray(colorID);
 	glEnableVertexAttribArray(uvID);
 
 	glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_player.model[0][0]);
+
 	glUniformMatrix4fv(glGetUniformLocation(progID, "ViewMatrix"), 1, GL_FALSE, &view[0][0]);
-	
 	glUniformMatrix4fv(glGetUniformLocation(progID, "ProjectionMatrix"), 1, GL_FALSE, &projection[0][0]);
 	glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
 
@@ -496,6 +452,7 @@ void Game::render()
 		glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_block[i].model[0][0]);
 		glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
 	}
+	drawGround();
 
 	window.display();
 
@@ -533,3 +490,225 @@ void Game::unload()
 	stbi_image_free(img_data);		// Free image stbi_image_free(..)
 }
 
+void Game::handleMovement()
+{
+	// Game input
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Z))
+	{
+		m_player.objectRotation.x += 0.1f;
+	}
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::X))
+	{
+		m_player.objectRotation.y += 0.1f;
+	}
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::C))
+	{
+		m_player.objectRotation.z += 0.1f;
+	}
+	// Translate
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))		// Up
+	{
+		//m_player.objectPosition += glm::vec3(0.0f, 0.01f, 0.f);			// Real up
+		if (backPosition == true)										// Psudo forward for camera
+		{
+			m_player.objectPosition += glm::vec3(0.01f, 0.0f, 0.0f);
+		}
+	}
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))		// Down
+	{
+		//m_player.objectPosition -= glm::vec3(0.0f, 0.01f, 0.f);			// Real down
+		if (backPosition == true)
+		{
+			m_player.objectPosition -= glm::vec3(0.01f, 0.0f, 0.0f);
+		}
+	}
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))	// Right
+	{
+		if (backPosition != true)
+		{
+			m_player.objectPosition += glm::vec3(0.1f, 0.0f, 0.0f);
+		}
+	}
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))		// Left
+	{
+		if (backPosition != true)
+		{
+			m_player.objectPosition -= glm::vec3(0.1f, 0.0f, 0.0f);
+		}
+	}
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::O))		// Into the world
+	{
+		//m_player.objectPosition += glm::vec3(0.0f, 0.f, 0.02f);
+	}
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::P))		// Toward the camera
+	{
+		//m_player.objectPosition -= glm::vec3(0.0f, 0.f, 0.02f);
+	}
+
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space))		// Toward the camera
+	{
+		if (m_playerJumpState == jumpState::Grounded)
+		{
+			m_playerJumpState = jumpState::Rising;
+		}
+	}
+}
+
+void Game::camera()
+{
+	// Working camera follower --------------------------------------------------------------------------------------------------
+	if (m_count > 100)
+	{
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::T))
+		{
+			if (backPosition == true)
+			{
+				cameraPosition = glm::vec3(0.0f, 0.0f, 30.0f);				// Side view
+				projection = glm::perspective(
+					glm::radians(45.f),					// Field of View 45 degrees
+					4.0f / 3.0f,			// Aspect ratio
+					0.1f,					// Display Range Min : 0.1f unit
+					1500.0f					// Display Range Max : 100.0f unit
+				);
+				sidePosition = true;
+			}
+			else
+			{
+				cameraPosition = glm::vec3(-20.0f, 10.0f, 10.0f);			// Behind view
+				projection = glm::perspective(
+					glm::radians(45.0f),					// Field of View 45 degrees
+					4.0f / 3.0f,			// Aspect ratio
+					0.1f,					// Display Range Min : 0.1f unit
+					1500.0f					// Display Range Max : 100.0f unit
+				);
+				backPosition = true;
+				sidePosition = false;
+			}
+			m_count = 0;
+
+		}
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::F))			// Flat
+		{
+			if (sidePosition == true)
+			{
+				cameraPosition = glm::vec3(0.0f, 0.0f, 1200.0f);
+				projection = glm::perspective(
+					glm::radians(1.f),					// Field of View 45 degrees
+					4.0f / 3.0f,			// Aspect ratio
+					0.1f,					// Display Range Min : 0.1f unit
+					1500.0f					// Display Range Max : 100.0f unit
+				);
+				sidePosition = false;
+			}
+			else if (sidePosition != true)							// Side view
+			{
+				cameraPosition = glm::vec3(0.0f, 0.0f, 30.0f);
+				projection = glm::perspective(
+					glm::radians(45.0f),					// Field of View 45 degrees
+					4.0f / 3.0f,			// Aspect ratio
+					0.1f,					// Display Range Min : 0.1f unit
+					1500.0f					// Display Range Max : 100.0f unit
+				);
+				sidePosition = true;
+			}
+			m_count = 0;
+
+		}
+	}
+	m_count++;
+	if (backPosition != true)
+	{
+		cameraPosition.z -= zoom;
+	}
+	else
+	{
+		cameraPosition.x += zoom;
+		cameraPosition.y -= zoom;
+	}
+	zoom = 0;
+	view = glm::lookAt(
+		m_player.objectPosition + cameraPosition,	// Camera (x,y,z), in World Space
+		m_player.objectPosition,		// Camera looking at origin
+		glm::vec3(0.0f, 1.0f, 0.0f)		// 0.0f, 1.0f, 0.0f Look Down and 0.0f, -1.0f, 0.0f Look Up
+	);
+
+	// Non follow cam
+	//view = glm::lookAt(
+	//	cameraPosition,	// Camera (x,y,z), in World Space
+	//	glm::vec3(0.0f, 0.0f, 0.0f),		// Camera looking at origin
+	//	glm::vec3(0.0f, 1.0f, 0.0f)		// 0.0f, 1.0f, 0.0f Look Down and 0.0f, -1.0f, 0.0f Look Up
+	//);
+
+	//-------------------------------------------------------------------------------------------------------------
+}
+
+void Game::drawGround()
+{
+		for (int i = 0; i < 200; i++)
+		{
+			m_ground[i].model = glm::mat4(1.f);
+			m_ground[i].objectPosition = vec3{ -20.f,-2.f,0.f } +vec3{ 0.f + i ,0.f,0.f };
+			m_ground[i].objectRotation = { 0.f, -180.f, -180.f };
+			m_ground[i].model = glm::translate(m_ground[i].model, m_ground[i].objectPosition);
+			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
+			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
+			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
+			glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_ground[i].model[0][0]);
+			glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
+		}
+
+
+		for (int i = 0; i < 200; i++)
+		{
+			m_ground[i].model = glm::mat4(1.f);
+			m_ground[i].objectPosition = vec3{ 180.f,-2.f,0.f } +vec3{ 0.f + i ,0.f,0.f };
+			m_ground[i].objectRotation = { 0.f, -180.f, -180.f };
+			m_ground[i].model = glm::translate(m_ground[i].model, m_ground[i].objectPosition);
+			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
+			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
+			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
+			glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_ground[i].model[0][0]);
+			glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
+		}
+	
+	
+		for (int i = 0; i < 200; i++)
+		{
+			m_ground[i].model = glm::mat4(1.f);
+			m_ground[i].objectPosition = vec3{ 380.f,-2.f,0.f } +vec3{ 0.f + i ,0.f,0.f };
+			m_ground[i].objectRotation = { 0.f, -180.f, -180.f };
+			m_ground[i].model = glm::translate(m_ground[i].model, m_ground[i].objectPosition);
+			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
+			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
+			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
+			glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_ground[i].model[0][0]);
+			glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
+		}
+	
+		for (int i = 0; i < 200; i++)
+		{
+			m_ground[i].model = glm::mat4(1.f);
+			m_ground[i].objectPosition = vec3{ 580.f,-2.f,0.f } +vec3{ 0.f + i ,0.f,0.f };
+			m_ground[i].objectRotation = { 0.f, -180.f, -180.f };
+			m_ground[i].model = glm::translate(m_ground[i].model, m_ground[i].objectPosition);
+			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
+			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
+			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
+			glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_ground[i].model[0][0]);
+			glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
+		}
+
+		for (int i = 0; i < 200; i++)
+		{
+			m_ground[i].model = glm::mat4(1.f);
+			m_ground[i].objectPosition = vec3{ 780.f,-2.f,0.f } +vec3{ 0.f + i ,0.f,0.f };
+			m_ground[i].objectRotation = { 0.f, -180.f, -180.f };
+			m_ground[i].model = glm::translate(m_ground[i].model, m_ground[i].objectPosition);
+			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
+			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
+			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
+			glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_ground[i].model[0][0]);
+			glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
+		}
+	
+}

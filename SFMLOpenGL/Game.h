@@ -33,8 +33,8 @@ public:
 	Game(sf::ContextSettings settings);
 	~Game();
 	void run();
+
 private:
-	GameObject* game_object[2];
 	RenderWindow window;
 	Clock clock;
 	Time time;
@@ -46,15 +46,32 @@ private:
 	void update();
 	void render();
 	void unload();
+	void handleMovement();
+	void camera();
+	void drawGround();
 
 	GameObject m_player;
 	GameObject m_block[10];
+	GameObject m_ground[200];
+
+	enum class jumpState
+	{
+		Grounded,
+		Rising,
+		Peak,
+		Falling
+	}m_playerJumpState;
+
+
 
 	bool backPosition{ false };
+	bool sidePosition{ true };
 	int m_count{ 0 };
 	vec3 cameraPosition{ 0.0f, 0.0f, 20.0f };
 	float zoom{ 0.f };
 	float rotationAngle = 0.0f;
+	float rotateCounter{ 0 };
+
 };
 
 #endif  // ! GAME_H
