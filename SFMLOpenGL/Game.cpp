@@ -29,13 +29,15 @@ uvID;		// UV ID
 
 //Please see .//Assets//Textures// for more textures
 //  col2 for Textured version
-const string filename = "col1.tga";
+const string filename = "pattern.tga";
+//const string filenamePat = "pattern.tga";
 
 int width;						// Width of texture
 int height;						// Height of texture
 int comp_count;					// Component of texture
 
 unsigned char* img_data;		// image data
+unsigned char* img_dataPat;		// image data
 
 mat4 projection,
 view(1.f);			// View, Projection
@@ -212,11 +214,7 @@ void Game::initialize()
 
 	// Set image data
 	img_data = stbi_load(filename.c_str(), &width, &height, &comp_count, 4);
-
-	if (img_data == NULL)
-	{
-		DEBUG_MSG("ERROR: Texture not loaded");
-	}
+	//img_dataPat = stbi_load(filenamePat.c_str(), &width, &height, &comp_count, 4);
 
 	glEnable(GL_TEXTURE_2D);
 	glGenTextures(1, &to[0]);
@@ -566,6 +564,7 @@ void Game::render()
 		glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_ground[i].model[0][0]);
 		glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
 	}
+
 	for (int i = 0; i < 4; i++)
 	{
 		glBufferSubData(GL_ARRAY_BUFFER, 0 * VERTICES * sizeof(GLfloat), 3 * VERTICES * sizeof(GLfloat), m_enemyCube[i].getVertex());	// They are all the same size
@@ -661,10 +660,15 @@ void Game::handleMovement()
 			m_playerJumpState = jumpState::Rising;
 		}
 	}
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::R))		// Toward the camera
+	if (restartCount > 10)
 	{
-		restart();
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::R))		// Toward the camera
+		{
+			restart();
+			restartCount = 0;
+		}
 	}
+	restartCount++;
 }
 
 void Game::collisions()

@@ -97,7 +97,7 @@ private:
 	int m_fails{ 0 };
 	int m_count{ 0 };
 	int m_score{ 0 };
-
+	int restartCount{ 0 };
 	float m_groundLevel{ 0 };
 	float m_jumpHeght{ 6 };
 	float m_jumpSpeed;
