@@ -1,3 +1,7 @@
+// Name: Robin Meyler
+// Project: Gameplay Programming I - Project 1, Cube platformer
+// Date: March 2019
+
 #include <Game.h>
 #include <Cube.h>
 #include <Easing.h>
@@ -21,18 +25,11 @@ to[1];		// Texture ID
 GLint	positionID,	// Position ID
 colorID,	// Color ID
 textureID,	// Texture ID
-uvID,		// UV ID
-mvpID[2],		// Model View Projection ID
-// 
-x_offsetID, // X offset ID
-y_offsetID,	// Y offset ID
-z_offsetID;	// Z offset ID
-
-GLenum	error;		// OpenGL Error Code
-
+uvID;		// UV ID
 
 //Please see .//Assets//Textures// for more textures
-const string filename = "doggo.tga";
+//  col2 for Textured version
+const string filename = "col1.tga";
 
 int width;						// Width of texture
 int height;						// Height of texture
@@ -40,14 +37,10 @@ int comp_count;					// Component of texture
 
 unsigned char* img_data;		// image data
 
-mat4 mvp[2], projection,
-view(1.f), model;			// Model View Projection
-
-GameObject player;
+mat4 projection,
+view(1.f);			// View, Projection
 
 Font font;						// Game font
-
-float x_offset, y_offset, z_offset; // offset on screen (Vertex Shader)
 
 Game::Game() :
 	window(VideoMode(800, 600),
@@ -70,30 +63,22 @@ Game::~Game()
 {
 }
 
-
+// Constant game loop used so it will have the rate of movement on whatever machine it runs on
 void Game::run()
 {
-
 	initialize();
-
+	sf::Clock gameClock;											// Game clock
+	sf::Time timeTakenForUpdate = sf::Time::Zero;					// No lag on first input
+	sf::Time timePerFrame = sf::seconds(1.f / 60.f);				// 60 frames per second
 	Event event;
-
-	float rotation = 0.01f;
-	float start_value = 0.0f;
-	float end_value = 1.0f;
-
-	while (isRunning) {
-
-#if (DEBUG >= 2)
-		DEBUG_MSG("Game running...");
-#endif
-
+	while (window.isOpen())									// Loop
+	{
 		while (window.pollEvent(event))
 		{
 			if (event.type == Event::Closed)
 			{
 				isRunning = false;
-			}
+			}		// Zoom function used in some of the views
 			if (event.type == sf::Event::MouseWheelScrolled)
 			{
 				if (event.mouseWheelScroll.wheel == sf::Mouse::VerticalWheel)
@@ -106,19 +91,18 @@ void Game::run()
 				std::cout << "wheel movement: " << event.mouseWheelScroll.delta << std::endl;
 				std::cout << "mouse x: " << event.mouseWheelScroll.x << std::endl;
 				std::cout << "mouse y: " << event.mouseWheelScroll.y << std::endl;
-				zoom = event.mouseWheelScroll.delta;
+				m_zoom = event.mouseWheelScroll.delta;
 			}
-
+		}// Check for input
+		timeTakenForUpdate += gameClock.restart();					// Returns time take to do the loop
+		while (timeTakenForUpdate > timePerFrame)					// Update enough times to catch up on updates missed during the lag time
+		{
+			timeTakenForUpdate -= timePerFrame;						// Decrement lag
+			//processInput();											// More checks, the more accurate input to display will be
+			update();									// Update
 		}
-		update();
 		render();
 	}
-
-#if (DEBUG >= 2)
-	DEBUG_MSG("Calling Cleanup...");
-#endif
-	unload();
-
 }
 
 
@@ -258,6 +242,8 @@ void Game::initialize()
 		GL_UNSIGNED_BYTE,		// Specifies Data type of image data
 		img_data				// Image Data
 	);
+
+	m_backPosition = true;
 	// Projection Matrix 
 	projection = glm::perspective(
 		glm::radians(45.0f),					// Field of View 45 degrees
@@ -268,39 +254,75 @@ void Game::initialize()
 
 	// Camera Matrix
 	view = glm::lookAt(
-		glm::vec3(0.0f, 0.0f, 20.0f),	// Camera (x,y,z), in World Space
+		glm::vec3(0.0f, 10.0f, 20.0f),	// Camera (x,y,z), in World Space
 		glm::vec3(0.0f, 0.0f, 0.0f),		// Camera looking at origin
 		glm::vec3(0.0f, 1.0f, 0.0f)		// 0.0f, 1.0f, 0.0f Look Down and 0.0f, -1.0f, 0.0f Look Up
 	);
 
 	// Initialize Positions
-	cameraPosition = { 0.0f, 0.0f, 30.0f };
-	m_player.model = glm::mat4(1.f);
-	m_player.model = glm::translate(m_player.model, m_player.objectPosition);
-	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
-	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
-	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
-	m_player.model = glm::scale(m_player.model, m_player.objectScale);
+	m_player.objectPosition = vec3{ 0.0f, 0.0f, 0.0f };
+	m_cameraPosition = glm::vec3(-20.0f, 10.0f, 10.0f);			// Behind view
+	 m_jumpSpeed = 0.4f;
+	 m_fallSpeed = 0.4f;
+	 m_rotationSpeed = 2.f;;
 
-	for (int i = 0; i < 10; i++)
+	 // Setting up original transformations on the game objects-----------------------------------
+	setupPlayer();
+
+	// Score blocks
+	setupGoals();
+
+	// Game block positions
+	setupObstacles();
+
+	// Game blocks
+	for (int i = 0; i < 50; i++)
 	{
-		m_block[i].objectPosition = vec3{ 0.f,0.f,0.f } +vec3{ 10.f + i * 20 ,0.f,0.f };
 		m_block[i].model = glm::translate(m_block[i].model, m_block[i].objectPosition);
 		m_block[i].objectRotation = { 0.f, -180.f, -180.f };
 		m_block[i].model = glm::rotate(m_block[i].model, glm::radians(m_block[i].objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
 		m_block[i].model = glm::rotate(m_block[i].model, glm::radians(m_block[i].objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
 		m_block[i].model = glm::rotate(m_block[i].model, glm::radians(m_block[i].objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
 	}
-
-	for (int i = 0; i < 200; i++)
+	// Ground rectangle block
+	for (int i = 0; i < 4; i++)
 	{
-		m_ground[i].objectPosition = vec3{ 0.f,-2.f,0.f } +vec3{ 0.f + i ,0.f,0.f };
+		m_ground[i].model = glm::mat4(1.f);
 		m_ground[i].objectRotation = { 0.f, -180.f, -180.f };
+		m_ground[i].objectPosition = vec3{ 50.f + i*200,-2.f,0.f };
+		m_ground[i].m_size = 100;
 		m_ground[i].model = glm::translate(m_ground[i].model, m_ground[i].objectPosition);
 		m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
 		m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
 		m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
 	}
+	// Winning cube to tell the game when the player has reached the end of the level
+	m_winCube[0].objectPosition = vec3{ 420, 0.f,0.f };
+	m_winCube[1].objectPosition = vec3{ 420, 2.f,0.f };
+	for (int i = 0; i < 2; i++)
+	{
+		m_winCube[i].objectRotation = { 90.f, -180.f, 0.f };
+		m_winCube[i].model = glm::mat4(1.f);
+		m_winCube[i].model = glm::translate(m_winCube[i].model, m_winCube[i].objectPosition);
+		m_winCube[i].model = glm::rotate(m_winCube[i].model, glm::radians(m_winCube[i].objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
+		m_winCube[i].model = glm::rotate(m_winCube[i].model, glm::radians(m_winCube[i].objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
+		m_winCube[i].model = glm::rotate(m_winCube[i].model, glm::radians(m_winCube[i].objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
+	}
+	m_enemyCube[0].objectPosition = vec3{ 175, 0.f,0.f };
+	m_enemyCube[1].objectPosition = vec3{ 175, 2.f,0.f };
+	m_enemyCube[2].objectPosition = vec3{ 40, 0.f,0.f };
+	m_enemyCube[3].objectPosition = vec3{ 140.f,8.f,0.f  };
+	for (int i = 0; i < 4; i++)
+	{
+		m_enemyCube[i].objectRotation = { -90.f, 90.f, -90.f };
+		m_enemyCube[i].model = glm::mat4(1.f);
+		m_enemyCube[i].model = glm::translate(m_enemyCube[i].model, m_enemyCube[i].objectPosition);
+		m_enemyCube[i].model = glm::rotate(m_enemyCube[i].model, glm::radians(m_enemyCube[i].objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
+		m_enemyCube[i].model = glm::rotate(m_enemyCube[i].model, glm::radians(m_enemyCube[i].objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
+		m_enemyCube[i].model = glm::rotate(m_enemyCube[i].model, glm::radians(m_enemyCube[i].objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
+	}
+	// Game time for output
+	m_gameClock.restart();
 
 	// Enable Depth Test
 	glEnable(GL_DEPTH_TEST);
@@ -316,61 +338,69 @@ void Game::update()
 #if (DEBUG >= 2)
 	DEBUG_MSG("Updating...");
 #endif
+	m_time = m_gameClock.getElapsedTime().asSeconds();
 
+	// Controls all input for the game except camera changes
 	handleMovement();
 
-	m_player.objectPosition.x += 0.2;
-
+	// Constant forward movement of the player for the game
+	m_player.objectPosition.x += 0.25;
+	
+	// Player jumping stages/states
 	if (m_playerJumpState == jumpState::Grounded)
 	{
-		//
+		m_jumpSpeed = 0.4f;		// Reset if they have been changed
+		m_fallSpeed = 0.4f;
+		m_rotationSpeed = 2.f;
+		m_collideExtraCheck = 0.5;
 	}
-	else if (m_playerJumpState == jumpState::Rising)
+	else if (m_playerJumpState == jumpState::Rising)		// Go up to the limit and rotate
 	{
-		if (m_player.objectPosition.y < 5.f)
+		if (m_player.objectPosition.y < m_jumpHeght - 1)
 		{
-			m_player.objectPosition.y += 0.25f;
-			m_player.objectRotation.z -= 1.5f;
+			m_player.objectPosition.y += m_jumpSpeed;
+			m_player.objectRotation.z -= m_rotationSpeed;
 		}
-		else if (m_player.objectPosition.y < 6.f)
+		else if (m_player.objectPosition.y < m_jumpHeght)		// Slower rise to appear to be under gravity
 		{
-			m_player.objectPosition.y += 0.125f;
-			m_player.objectRotation.z -= 1.5f;
+			m_player.objectPosition.y += m_jumpSpeed/2;
+			m_player.objectRotation.z -= m_rotationSpeed;
 		}
 		else
 		{
 			m_playerJumpState = jumpState::Falling;
 		}
 	}
-	else if (m_playerJumpState == jumpState::Falling)
+	else if (m_playerJumpState == jumpState::Falling)			// Fall and continue to rotate
 	{
-		if (m_player.objectPosition.y > 5.f)
+		if (m_player.objectPosition.y > m_jumpHeght - 1)
 		{
-			m_player.objectPosition.y -= 0.125f;
-			m_player.objectRotation.z -= 1.55f;
+			m_player.objectPosition.y -= m_fallSpeed/2;
+			m_player.objectRotation.z -= m_rotationSpeed;
 		}
-		else if (m_player.objectPosition.y > 0.f)
+		else if (m_player.objectPosition.y > m_groundLevel)
 		{
-			m_player.objectPosition.y -= 0.25f;
-			m_player.objectRotation.z -= 1.5f;
+			m_player.objectPosition.y -= m_fallSpeed;
+			m_player.objectRotation.z -= m_rotationSpeed;
 		}
 		else
 		{
-			m_playerJumpState = jumpState::Grounded;
-			rotateCounter -= 90;
-			m_player.objectRotation.z = rotateCounter;
+			m_playerJumpState = jumpState::Grounded;				// Landed, do resets
+			m_rotateCounter -= 90;
+			m_player.objectRotation.z = m_rotateCounter;
+			if (m_groundLevel == 0)
+			{
+				m_player.objectPosition = { m_player.objectPosition.x, 0.f, 0.f };		// No clipping
+			}
 		}
 	}
+	// Player and world collisions
+	collisions();
+	
+	// Updates the player with any changes in the transformations
+	setupPlayer();
 
-
-	// Updating the player to any changes made -------------------------------------------------------------------------------
-	m_player.model = glm::mat4(1.f);
-	m_player.model = glm::translate(m_player.model, m_player.objectPosition);
-	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
-	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
-	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
-	m_player.model = glm::scale(m_player.model, m_player.objectScale);
-
+	// Different views and projections (Press T, F)
 	camera();
 }
 
@@ -380,23 +410,78 @@ void Game::render()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	// Save current OpenGL render states
 	window.pushGLStates();
+	// Sf::Text output for the HUD
+	if (m_won != true)
+	{
+		string score = "Score: "
+			+ string(toString(m_score));
+		Text textScore(score, font);
+		textScore.setFillColor(sf::Color(255, 255, 255, 170));
+		textScore.setPosition(50.f, 20.f);
+		textScore.setCharacterSize(40);
+		window.draw(textScore);
 
-	// Find mouse position using sf::Mouse
-	int x = Mouse::getPosition(window).x;
-	int y = Mouse::getPosition(window).y;
+		string timeS = "Time: "
+			+ string(toString(m_time));
+		Text timeScore(timeS, font);
+		timeScore.setFillColor(sf::Color(255, 255, 255, 170));
+		timeScore.setPosition(50.f, 55.f);
+		timeScore.setCharacterSize(40);
+		window.draw(timeScore);
 
-	string hud = "Heads Up Display ["
-		+ string(toString(x))
-		+ "]["
-		+ string(toString(y))
-		+ "]";
+		string fails = "Fails: "
+			+ string(toString(m_fails));
+		Text failScore(fails, font);
+		failScore.setFillColor(sf::Color(255, 255, 255, 170));
+		failScore.setPosition(50.f, 90.f);
+		failScore.setCharacterSize(40);
+		window.draw(failScore);
 
-	Text text(hud, font);
+		// Info for the hud, moves based on the view
+		if (m_backPosition != true)							// Flat view
+		{
+			string purp = "Purple: Enemy (Evil) ";
+			Text purpT(purp, font);
+			purpT.setFillColor(sf::Color(255, 0, 255, 170));
+			purpT.setPosition(400.f, 20.f);
+			purpT.setCharacterSize(30);
+			window.draw(purpT);
 
-	text.setFillColor(sf::Color(255, 255, 255, 170));
-	text.setPosition(50.f, 50.f);
+			string green = "Green: Score (Good)";
+			Text greenT(green, font);
+			greenT.setFillColor(sf::Color(0, 255, 0, 170));
+			greenT.setPosition(400.f, 50.f);
+			greenT.setCharacterSize(30);
+			window.draw(greenT);
+		}
+		else												// Behind, 3D view
+		{
+			string purp = "Purple: Enemy (Evil) ";
+			Text purpT(purp, font);
+			purpT.setFillColor(sf::Color(255, 0, 255, 170));
+			purpT.setPosition(400, 470.f);
+			purpT.setCharacterSize(30);
+			window.draw(purpT);
 
-	window.draw(text);
+			string green = "Green: Score (Good)";
+			Text greenT(green, font);
+			greenT.setFillColor(sf::Color(0, 255, 0, 170));
+			greenT.setPosition(400.f, 500.f);
+			greenT.setCharacterSize(30);
+			window.draw(greenT);
+		}
+	}
+	else if (m_won == true)		// If the end has been reached
+	{
+		string won = "You have won !!\nYour score: " 
+			 +string(toString(m_score)) + "\nYour fails: " 
+			+ string(toString(m_fails));
+		Text wonT(won, font);
+		wonT.setFillColor(sf::Color(255, 0, 0, 170));
+		wonT.setPosition(50.f, 380.f);
+		wonT.setCharacterSize(60);
+		window.draw(wonT);
+	}
 
 	// Restore OpenGL render states
 	window.popGLStates();
@@ -441,19 +526,52 @@ void Game::render()
 	glEnableVertexAttribArray(colorID);
 	glEnableVertexAttribArray(uvID);
 
-	glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_player.model[0][0]);
-
+	// View and porjection updated once
 	glUniformMatrix4fv(glGetUniformLocation(progID, "ViewMatrix"), 1, GL_FALSE, &view[0][0]);
 	glUniformMatrix4fv(glGetUniformLocation(progID, "ProjectionMatrix"), 1, GL_FALSE, &projection[0][0]);
+
+	// Drawing player
+	glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_player.model[0][0]);
 	glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
 
-	for (int i = 0; i < 10; i++)
+	// Drawing object blocks
+	for (int i = 0; i < 50; i++)
 	{
+		glBufferSubData(GL_ARRAY_BUFFER, 0 * VERTICES * sizeof(GLfloat), 3 * VERTICES * sizeof(GLfloat), m_block[i].getVertex());	// They are all the same size
 		glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_block[i].model[0][0]);
 		glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
 	}
-	drawGround();
+	// Drawing Score blocks
+	for (int i = 0; i < 5; i++)
+	{
+		if (m_goalCube[i].isHit == false)
+		{
+			glBufferSubData(GL_ARRAY_BUFFER, 0 * VERTICES * sizeof(GLfloat), 3 * VERTICES * sizeof(GLfloat), m_goalCube[i].getVertex());	// They are all the same size
+			glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_goalCube[i].model[0][0]);
+			glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
+		}
+	}
+	// Drawing End blocks to show a win
+	for (int i = 0; i < 2; i++)
+	{
+		glBufferSubData(GL_ARRAY_BUFFER, 0 * VERTICES * sizeof(GLfloat), 3 * VERTICES * sizeof(GLfloat), m_winCube[i].getVertex());	// They are all the same size
+		glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_winCube[i].model[0][0]);
+		glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
+	}
 
+	// Drawing Ground rectangles
+	for (int i = 0; i < 4; i++)
+	{
+		glBufferSubData(GL_ARRAY_BUFFER, 0 * VERTICES * sizeof(GLfloat), 3 * VERTICES * sizeof(GLfloat), m_ground[i].getVertex());	// They are all the same size
+		glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_ground[i].model[0][0]);
+		glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
+	}
+	for (int i = 0; i < 4; i++)
+	{
+		glBufferSubData(GL_ARRAY_BUFFER, 0 * VERTICES * sizeof(GLfloat), 3 * VERTICES * sizeof(GLfloat), m_enemyCube[i].getVertex());	// They are all the same size
+		glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_enemyCube[i].model[0][0]);
+		glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
+	}
 	window.display();
 
 	// Disable Arrays
@@ -467,19 +585,10 @@ void Game::render()
 
 	// Reset the Shader Program to Use
 	glUseProgram(0);
-
-	// Check for OpenGL Error code
-	error = glGetError();
-	if (error != GL_NO_ERROR) {
-		DEBUG_MSG(error);
-	}
 }
 
 void Game::unload()
 {
-#if (DEBUG >= 2)
-	DEBUG_MSG("Cleaning up...");
-#endif
 	glDetachShader(progID, vsid);	// Shader could be used with more than one progID
 	glDetachShader(progID, fsid);	// ..
 	glDeleteShader(vsid);			// Delete Vertex Shader
@@ -492,7 +601,7 @@ void Game::unload()
 
 void Game::handleMovement()
 {
-	// Game input
+	// Game input-------------------------------------------------------------------
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Z))
 	{
 		m_player.objectRotation.x += 0.1f;
@@ -509,31 +618,31 @@ void Game::handleMovement()
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))		// Up
 	{
 		//m_player.objectPosition += glm::vec3(0.0f, 0.01f, 0.f);			// Real up
-		if (backPosition == true)										// Psudo forward for camera
+		if (m_backPosition == true)										// Psudo forward for camera
 		{
-			m_player.objectPosition += glm::vec3(0.01f, 0.0f, 0.0f);
+			m_player.objectPosition += glm::vec3(0.001f, 0.0f, 0.0f);
 		}
 	}
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))		// Down
 	{
 		//m_player.objectPosition -= glm::vec3(0.0f, 0.01f, 0.f);			// Real down
-		if (backPosition == true)
+		if (m_backPosition == true)
 		{
-			m_player.objectPosition -= glm::vec3(0.01f, 0.0f, 0.0f);
+			m_player.objectPosition -= glm::vec3(0.001f, 0.0f, 0.0f);
 		}
 	}
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))	// Right
 	{
-		if (backPosition != true)
+		if (m_backPosition != true)
 		{
-			m_player.objectPosition += glm::vec3(0.1f, 0.0f, 0.0f);
+			m_player.objectPosition += glm::vec3(0.01f, 0.0f, 0.0f);
 		}
 	}
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))		// Left
 	{
-		if (backPosition != true)
+		if (m_backPosition != true)
 		{
-			m_player.objectPosition -= glm::vec3(0.1f, 0.0f, 0.0f);
+			m_player.objectPosition -= glm::vec3(0.01f, 0.0f, 0.0f);
 		}
 	}
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::O))		// Into the world
@@ -552,163 +661,301 @@ void Game::handleMovement()
 			m_playerJumpState = jumpState::Rising;
 		}
 	}
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::R))		// Toward the camera
+	{
+		restart();
+	}
+}
+
+void Game::collisions()
+{
+	// Collisions --------------------------------------------------------
+	// Player and winning cube
+	for (int i = 0; i < 2; i++)
+	{
+		bool wincollide = checkCollision(m_player, m_winCube[i]);
+		if (wincollide == true)
+		{
+			m_winCube[i].isHit = true;
+			m_won = true;
+		}
+	}
+	// Player to Enemy block 
+	for (int i = 0; i < 4; i++)
+	{
+		bool enemyCol = checkCollision(m_player, m_enemyCube[i]);
+		if (enemyCol == true)
+		{
+			restart();
+		}
+	}
+	// Player and Score cubes
+	for (int i = 0; i < 5; i++)
+	{
+		bool goalcollide = checkCollision(m_player, m_goalCube[i]);
+		if (goalcollide == true)
+		{
+			m_goalCube[i].isHit = true;
+			m_score++;
+			m_goalCube[i].objectPosition = vec3{ 92.0f, 1000.0f, 0.0f };
+			m_goalCube[i].model = glm::mat4(1.f);
+			m_goalCube[i].model = glm::translate(m_goalCube[i].model, m_goalCube[i].objectPosition);
+		}
+	}
+	// Player and objects game cubes
+	bool collide{ false };
+	for (int i = 0; i < 50; i++)
+	{
+		collide = checkCollision(m_player, m_block[i]);
+		if (collide == true)
+		{							// If the block it collides with is under it (or close enough to) Land on it
+			if ((m_player.objectPosition.y - (m_player.m_size / 2)) > (m_block[i].objectPosition.y + (m_block[i].m_size / 2) - m_collideExtraCheck))
+			{
+				m_groundLevel = m_block[i].objectPosition.y + 2;
+				m_player.objectPosition = { m_player.objectPosition.x, m_groundLevel, m_player.objectPosition.z };
+				m_jumpHeght = m_groundLevel + 6;
+			}
+			else
+			{
+ 				restart();			// If its the side or bottom, restart
+			}
+			break;
+		}
+		else if (collide != true && m_playerJumpState == jumpState::Grounded)		// If you move off a block, fall
+		{
+			m_groundLevel = 0;					// Ground level unless it meets another cube on the way down
+			m_jumpHeght = m_groundLevel + 6;
+		}
+	}
+	// This is called outside because of the break, increase fall speed if the player is high enough
+	if (collide == false && m_player.objectPosition.y > 0 && m_playerJumpState == jumpState::Grounded)
+	{
+		m_playerJumpState = jumpState::Falling;
+		if (m_player.objectPosition.y > 3)
+		{
+			m_fallSpeed = 0.8;
+			m_rotationSpeed = 3;
+			m_collideExtraCheck = 1;
+		}
+	}
 }
 
 void Game::camera()
 {
 	// Working camera follower --------------------------------------------------------------------------------------------------
-	if (m_count > 100)
+	if (m_count > 10)		// Counter so the screen doesnt swap too quick
 	{
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::T))
 		{
-			if (backPosition == true)
+			if (m_backPosition == true)
 			{
-				cameraPosition = glm::vec3(0.0f, 0.0f, 30.0f);				// Side view
+				m_cameraPosition = glm::vec3(0.0f, 10.0f, 30.0f);				// Side view
 				projection = glm::perspective(
 					glm::radians(45.f),					// Field of View 45 degrees
 					4.0f / 3.0f,			// Aspect ratio
 					0.1f,					// Display Range Min : 0.1f unit
 					1500.0f					// Display Range Max : 100.0f unit
 				);
-				sidePosition = true;
+				m_sidePosition = true;
+				m_backPosition = false;
 			}
 			else
 			{
-				cameraPosition = glm::vec3(-20.0f, 10.0f, 10.0f);			// Behind view
+				m_cameraPosition = glm::vec3(-20.0f, 10.0f, 10.0f);			// Behind view
 				projection = glm::perspective(
 					glm::radians(45.0f),					// Field of View 45 degrees
 					4.0f / 3.0f,			// Aspect ratio
 					0.1f,					// Display Range Min : 0.1f unit
 					1500.0f					// Display Range Max : 100.0f unit
 				);
-				backPosition = true;
-				sidePosition = false;
+				m_backPosition = true;
+				m_sidePosition = false;
 			}
 			m_count = 0;
 
 		}
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::F))			// Flat
 		{
-			if (sidePosition == true)
+			if (m_sidePosition == true)							// Flat view
 			{
-				cameraPosition = glm::vec3(0.0f, 0.0f, 1200.0f);
+				m_cameraPosition = glm::vec3(0.0f, 0.0f, 1400.0f);
 				projection = glm::perspective(
-					glm::radians(1.f),					// Field of View 45 degrees
+					glm::radians(1.f),					// Field of View 1 degree
 					4.0f / 3.0f,			// Aspect ratio
 					0.1f,					// Display Range Min : 0.1f unit
 					1500.0f					// Display Range Max : 100.0f unit
 				);
-				sidePosition = false;
+				m_sidePosition = false;
+				m_backPosition = false;
 			}
-			else if (sidePosition != true)							// Side view
+			else if (m_sidePosition != true)							// Side view
 			{
-				cameraPosition = glm::vec3(0.0f, 0.0f, 30.0f);
+				m_cameraPosition = glm::vec3(0.0f, 10.0f, 30.0f);
 				projection = glm::perspective(
 					glm::radians(45.0f),					// Field of View 45 degrees
 					4.0f / 3.0f,			// Aspect ratio
 					0.1f,					// Display Range Min : 0.1f unit
 					1500.0f					// Display Range Max : 100.0f unit
 				);
-				sidePosition = true;
+				m_sidePosition = true;
+				m_backPosition = false;
 			}
 			m_count = 0;
 
 		}
 	}
 	m_count++;
-	if (backPosition != true)
+	// Depending on the view, zoom the screen in and out
+	if (m_backPosition != true)
 	{
-		cameraPosition.z -= zoom;
+		m_cameraPosition.z -= m_zoom;
 	}
 	else
 	{
-		cameraPosition.x += zoom;
-		cameraPosition.y -= zoom;
+		m_cameraPosition.x += m_zoom;
+		m_cameraPosition.y -= m_zoom;
 	}
-	zoom = 0;
+	m_zoom = 0;
+
+	// Apply decided View, follows the player
 	view = glm::lookAt(
-		m_player.objectPosition + cameraPosition,	// Camera (x,y,z), in World Space
+		m_player.objectPosition + m_cameraPosition,	// Camera (x,y,z), in World Space
 		m_player.objectPosition,		// Camera looking at origin
 		glm::vec3(0.0f, 1.0f, 0.0f)		// 0.0f, 1.0f, 0.0f Look Down and 0.0f, -1.0f, 0.0f Look Up
 	);
 
-	// Non follow cam
+	// Non follow cam  --------------------------------------------
 	//view = glm::lookAt(
 	//	cameraPosition,	// Camera (x,y,z), in World Space
 	//	glm::vec3(0.0f, 0.0f, 0.0f),		// Camera looking at origin
 	//	glm::vec3(0.0f, 1.0f, 0.0f)		// 0.0f, 1.0f, 0.0f Look Down and 0.0f, -1.0f, 0.0f Look Up
 	//);
-
-	//-------------------------------------------------------------------------------------------------------------
 }
 
-void Game::drawGround()
+bool Game::checkCollision(GameObject &one, GameObject &two) // AABB - AABB collision
 {
-		for (int i = 0; i < 200; i++)
-		{
-			m_ground[i].model = glm::mat4(1.f);
-			m_ground[i].objectPosition = vec3{ -20.f,-2.f,0.f } +vec3{ 0.f + i ,0.f,0.f };
-			m_ground[i].objectRotation = { 0.f, -180.f, -180.f };
-			m_ground[i].model = glm::translate(m_ground[i].model, m_ground[i].objectPosition);
-			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
-			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
-			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
-			glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_ground[i].model[0][0]);
-			glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
-		}
+	// Collision x-axis
+	bool collisionX = one.objectPosition.x + one.m_size >= two.objectPosition.x &&
+		two.objectPosition.x + two.m_size >= one.objectPosition.x;		// two size used here in case it is a rectangle, could be expanded
+	// Collision y-axis
+	bool collisionY = one.objectPosition.y + one.m_size >= two.objectPosition.y &&
+		two.objectPosition.y + one.m_size >= one.objectPosition.y;
+	// Collision only if on both axes
+	return collisionX && collisionY;
+}
 
+// Player transformations
+void Game::setupPlayer()
+{
+	m_player.model = glm::mat4(1.f);
+	m_player.model = glm::translate(m_player.model, m_player.objectPosition);
+	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
+	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
+	m_player.model = glm::rotate(m_player.model, glm::radians(m_player.objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
+	m_player.model = glm::scale(m_player.model, m_player.objectScale);
+}
 
-		for (int i = 0; i < 200; i++)
-		{
-			m_ground[i].model = glm::mat4(1.f);
-			m_ground[i].objectPosition = vec3{ 180.f,-2.f,0.f } +vec3{ 0.f + i ,0.f,0.f };
-			m_ground[i].objectRotation = { 0.f, -180.f, -180.f };
-			m_ground[i].model = glm::translate(m_ground[i].model, m_ground[i].objectPosition);
-			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
-			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
-			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
-			glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_ground[i].model[0][0]);
-			glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
-		}
-	
-	
-		for (int i = 0; i < 200; i++)
-		{
-			m_ground[i].model = glm::mat4(1.f);
-			m_ground[i].objectPosition = vec3{ 380.f,-2.f,0.f } +vec3{ 0.f + i ,0.f,0.f };
-			m_ground[i].objectRotation = { 0.f, -180.f, -180.f };
-			m_ground[i].model = glm::translate(m_ground[i].model, m_ground[i].objectPosition);
-			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
-			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
-			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
-			glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_ground[i].model[0][0]);
-			glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
-		}
-	
-		for (int i = 0; i < 200; i++)
-		{
-			m_ground[i].model = glm::mat4(1.f);
-			m_ground[i].objectPosition = vec3{ 580.f,-2.f,0.f } +vec3{ 0.f + i ,0.f,0.f };
-			m_ground[i].objectRotation = { 0.f, -180.f, -180.f };
-			m_ground[i].model = glm::translate(m_ground[i].model, m_ground[i].objectPosition);
-			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
-			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
-			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
-			glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_ground[i].model[0][0]);
-			glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
-		}
+// Setting and resseting the score cubes
+void Game::setupGoals()
+{
+	m_goalCube[0].objectPosition = vec3{ 92.0f, 11.0f, 0.0f };
+	m_goalCube[1].objectPosition = vec3{ 232.f, 13.f,0.f };
+	m_goalCube[2].objectPosition = vec3{ 321.f, 14.f,0.f };
+	m_goalCube[3].objectPosition = vec3{ 275.f,0.f,0.f };
+	m_goalCube[4].objectPosition = vec3{ 384.f, 23.f,0.f };
+	for (int i = 0; i < 5; i++)
+	{
+		m_goalCube[i].isHit = false;
+		m_goalCube[i].objectRotation = { 90.f, -180.f, 0.f };
+		m_goalCube[i].model = glm::mat4(1.f);
+		m_goalCube[i].model = glm::translate(m_goalCube[i].model, m_goalCube[i].objectPosition);
+		m_goalCube[i].model = glm::rotate(m_goalCube[i].model, glm::radians(m_goalCube[i].objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
+		m_goalCube[i].model = glm::rotate(m_goalCube[i].model, glm::radians(m_goalCube[i].objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
+		m_goalCube[i].model = glm::rotate(m_goalCube[i].model, glm::radians(m_goalCube[i].objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
+		m_goalCube[i].model = glm::scale(m_goalCube[i].model, m_goalCube[i].objectScale);
+	}
+}
 
-		for (int i = 0; i < 200; i++)
-		{
-			m_ground[i].model = glm::mat4(1.f);
-			m_ground[i].objectPosition = vec3{ 780.f,-2.f,0.f } +vec3{ 0.f + i ,0.f,0.f };
-			m_ground[i].objectRotation = { 0.f, -180.f, -180.f };
-			m_ground[i].model = glm::translate(m_ground[i].model, m_ground[i].objectPosition);
-			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.x), glm::vec3(1.f, 0.f, 0.f));
-			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.y), glm::vec3(0.f, 1.0f, 0.f));
-			m_ground[i].model = glm::rotate(m_ground[i].model, glm::radians(m_ground[i].objectRotation.z), glm::vec3(0.f, 0.f, 1.f));
-			glUniformMatrix4fv(glGetUniformLocation(progID, "ModelMatrix"), 1, GL_FALSE, &m_ground[i].model[0][0]);
-			glDrawElements(GL_TRIANGLES, 3 * INDICES, GL_UNSIGNED_INT, NULL);
-		}
-	
+// Game block positions
+void Game::setupObstacles()
+{
+	m_block[0].objectPosition = vec3{ 30.f,0.f,0.f };
+	m_block[1].objectPosition = vec3{ 50.f,0.f,0.f };
+	m_block[2].objectPosition = vec3{ 52.f,0.f,0.f };
+	m_block[3].objectPosition = vec3{ 68.f,0.f,0.f };
+	m_block[4].objectPosition = vec3{ 76.f,3.f,0.f };
+
+	m_block[5].objectPosition = vec3{ 84.f,6.f,0.f };
+	m_block[6].objectPosition = vec3{ 92.f,9.f,0.f };
+	m_block[17].objectPosition = vec3{ 100.f,0.f,0.f };		// Filling gaps
+	m_block[18].objectPosition = vec3{ 104.f,0.f,0.f };
+	m_block[7].objectPosition = vec3{ 120.f,0.f,0.f };
+
+	m_block[8].objectPosition = vec3{ 120.f,2.f,0.f };
+	m_block[9].objectPosition = vec3{ 128.f,5.f,0.f };
+	m_block[10].objectPosition = vec3{ 136.f,8.f,0.f };
+	m_block[19].objectPosition = vec3{ 140.f,0.f,0.f };
+	m_block[11].objectPosition = vec3{ 140.f,2.f,0.f };
+
+	m_block[12].objectPosition = vec3{ 140.f,4.f,0.f };
+	m_block[13].objectPosition = vec3{ 140.f,6.f,0.f };
+	m_block[14].objectPosition = vec3{ 150.f,0.f,0.f };
+	m_block[15].objectPosition = vec3{ 160.f,0.f,0.f };
+	m_block[16].objectPosition = vec3{ 170.f,0.f,0.f };
+
+	m_block[20].objectPosition = vec3{ 190.f,0.f,0.f };
+	m_block[21].objectPosition = vec3{ 198.f,3.f,0.f };
+	m_block[22].objectPosition = vec3{ 208.f,3.f,0.f };
+	m_block[23].objectPosition = vec3{ 216.f,6.f,0.f };
+	m_block[24].objectPosition = vec3{ 224.f,9.f,0.f };
+
+	m_block[25].objectPosition = vec3{ 232.f,11.f,0.f };		// Goal block
+	m_block[26].objectPosition = vec3{ 220.f,0.f,0.f };
+	m_block[27].objectPosition = vec3{ 220.f,2.f,0.f };
+	m_block[28].objectPosition = vec3{ 220.f,4.f,0.f };
+	m_block[29].objectPosition = vec3{ 280.f,0.f,0.f };
+
+	m_block[30].objectPosition = vec3{ 280.f,2.f,0.f };
+	m_block[33].objectPosition = vec3{ 270.f,0.f,0.f };
+	m_block[34].objectPosition = vec3{ 270.f,2.f,0.f };
+	m_block[35].objectPosition = vec3{ 285.f,0.f,0.f };		
+	m_block[36].objectPosition = vec3{ 294.f,3.f,0.f };
+
+	m_block[37].objectPosition = vec3{ 303.f,6.f,0.f }; 
+	m_block[31].objectPosition = vec3{ 312.f,9.f,0.f };
+	m_block[32].objectPosition = vec3{ 321.f,12.f,0.f};		// Goal
+	m_block[38].objectPosition = vec3{ 320.f,0.f,0.f };
+	m_block[39].objectPosition = vec3{ 320.f,0.f,0.f };
+
+	// ---------
+	m_block[40].objectPosition = vec3{ 328.f,3.f,0.f };
+	m_block[41].objectPosition = vec3{ 336.f,6.f,0.f };
+	m_block[42].objectPosition = vec3{ 344.f,9.f,0.f };
+	m_block[43].objectPosition = vec3{ 353.f,12.f,0.f };
+	m_block[44].objectPosition = vec3{ 362.f,15.f,0.f };
+
+	m_block[45].objectPosition = vec3{ 370.f,18.f,0.f };		
+	m_block[46].objectPosition = vec3{ 378.f,21.f,0.f };
+	m_block[47].objectPosition = vec3{ 380.f,21.f,0.f };
+	m_block[48].objectPosition = vec3{ 382.f,21.f,0.f };
+	m_block[49].objectPosition = vec3{ 384.f,21.f,0.f };		// End
+}
+
+// Setart the game/ reset the game
+void Game::restart()
+{
+	m_fails++;
+
+	m_player.objectPosition = { 0.f, 0.f, 0.f };
+	m_player.objectRotation = { 0.f, 0.f, 0.f };
+
+	m_rotateCounter = 0;
+	m_score = 0;
+	m_time = 0;
+
+	m_won = false;
+
+	setupPlayer();
+	setupGoals();
+	m_gameClock.restart();
 }

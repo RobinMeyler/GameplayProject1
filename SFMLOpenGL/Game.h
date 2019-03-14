@@ -1,6 +1,11 @@
 #ifndef GAME_H
 #define GAME_H
 
+// Name: Robin Meyler
+// Project: Gameplay Programming I - Project 1, Cube platformer
+// Date: March 2019
+
+
 #include <string>
 #include <sstream>
 
@@ -46,14 +51,36 @@ private:
 	void update();
 	void render();
 	void unload();
+
+	// Functions to keep the code readable and easy to navigate
 	void handleMovement();
+	void collisions();
 	void camera();
-	void drawGround();
+	void setupPlayer();
+	void setupGoals();
+	void setupObstacles();
+	void restart();
 
-	GameObject m_player;
-	GameObject m_block[10];
-	GameObject m_ground[200];
+	// Checks AABB colisions for the cubes
+	bool checkCollision(GameObject &one, GameObject &two);
 
+	// Game objects ------------------------
+	// Value decides shape, 1 = Cube, 2 = Rectangle
+	GameObject m_player{ 1 };
+	GameObject m_block[50]{ {1},{1},{1},{1},{1}, {1},{1},{1},{1},{1},
+	{1},{1},{1},{1},{1}, {1},{1},{1},{1},{1} ,
+	{1},{1},{1},{1},{1}, {1},{1},{1},{1},{1} ,
+	{1},{1},{1},{1},{1}, {1},{1},{1},{1},{1} ,
+	{1},{1},{1},{1},{1}, {1},{1},{1},{1},{1} };
+	GameObject m_ground[4]{ 2,2,2,2 };
+	GameObject m_goalCube[5]{ 1,1,1,1,1 };
+	GameObject m_enemyCube[4]{ 1,1,1,1 };
+	GameObject m_winCube[2]{ 1,1 };
+
+	// Camera
+	vec3 m_cameraPosition{ 0.0f, 0.0f, 20.0f };
+
+	// For the jumping
 	enum class jumpState
 	{
 		Grounded,
@@ -62,16 +89,28 @@ private:
 		Falling
 	}m_playerJumpState;
 
+	// output time
+	sf::Clock m_gameClock;
 
-
-	bool backPosition{ false };
-	bool sidePosition{ true };
+	// Variables used through the game
+	int m_time{ 0 };
+	int m_fails{ 0 };
 	int m_count{ 0 };
-	vec3 cameraPosition{ 0.0f, 0.0f, 20.0f };
-	float zoom{ 0.f };
-	float rotationAngle = 0.0f;
-	float rotateCounter{ 0 };
+	int m_score{ 0 };
 
+	float m_groundLevel{ 0 };
+	float m_jumpHeght{ 6 };
+	float m_jumpSpeed;
+	float m_fallSpeed;
+	float m_rotationSpeed;
+	float m_collideExtraCheck{ 0.5 };
+	float m_zoom{ 0.f };
+	float m_rotationAngle = 0.0f;
+	float m_rotateCounter{ 0 };
+
+	bool m_backPosition{ false };
+	bool m_sidePosition{ true };
+	bool m_won{ false };
 };
 
 #endif  // ! GAME_H

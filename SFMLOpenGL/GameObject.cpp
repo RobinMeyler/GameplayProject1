@@ -1,11 +1,23 @@
 #include <GameObject.h>
 
-GameObject::GameObject() :
+GameObject::GameObject(int t_type) :
 	model(1.0f)
 {
-	
+	type = t_type;
+
+	for(int i = 0; i < 72; i++)
+	{
+		vertexRec[i] = verticesRec[i];
+	}
 	// Copy the Cube contents into GameObject
-	memcpy(this->vertex, vertices, sizeof(this->vertex));
+	if (t_type == 1)
+	{
+		memcpy(this->vertex, vertices, sizeof(this->vertex));
+	}
+	else if (t_type == 2)
+	{
+		memcpy(vertexRec, vertexRec, sizeof(vertexRec));
+	}
 	memcpy(this->color, colors, sizeof(this->color));
 	memcpy(this->uv, uvs, sizeof(this->uv));
 
@@ -22,7 +34,12 @@ GameObject::~GameObject()
 {
 }
 
-vec3 GameObject::getPosition() { return this->position; }
+vec3 GameObject::getPosition() { 
+return this->position; }
+void GameObject::setSize(float t_size)
+{
+	m_size = t_size;
+}
 void GameObject::setPosition(vec3 position) { this->position = position; }
 
 void GameObject::setMove(int t_move)
@@ -31,7 +48,15 @@ void GameObject::setMove(int t_move)
 }
 
 // Returns the first element of the Vertex array
-GLfloat* GameObject::getVertex() { return this->vertex; }
+GLfloat* GameObject::getVertex() {
+	if (type == 1)
+	{
+		return this->vertex;
+	}
+	else if (type == 2)
+	{
+		return this->vertexRec;
+	} }
 // 3 Vertices
 int GameObject::getVertexCount() { return ARRAY_SIZE(vertex) / 3; }
 
